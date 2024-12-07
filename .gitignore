@@ -1,3 +1,7 @@
+# Tonziss
+training/big/*
+training/small/*
+launch.json
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
