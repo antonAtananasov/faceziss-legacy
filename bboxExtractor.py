@@ -2,7 +2,7 @@ import time
 import cv2
 import numpy as np
 from typing import Callable
-from fileUtils import saveFrames, generateLineStrip
+from fileUtils import saveFrames
 from evm import magnifyVideo
 
 class BboxExtractor:
@@ -90,23 +90,4 @@ class BboxExtractor:
     def saveFrames(self, fileName:str):            
         saveFrames(fileName, frames = self.getFrames(),fps=self.fps)
 
-    def generateLineStrips(self, steps: int) -> list[cv2.typing.MatLike]:
-        stripImages = []
-        for i in range(steps):
-            magnifiedVideo = magnifyVideo(
-                np.array(self.getFrames()),
-                self.fps,
-                {
-                    "freq_range": [
-                        0.833 + i * 0.167 / (steps / 4),
-                        1 + i * 0.167 / (steps / 4),
-                    ],
-                },
-            )
 
-            strip = generateLineStrip(
-                magnifiedVideo,
-            )
-
-            stripImages.append(strip)
-        return stripImages

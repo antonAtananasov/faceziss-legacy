@@ -1,5 +1,7 @@
 import argparse
 import os
+import cv2
+import numpy as np
 
 from constants import gaussian_kernel
 from gaussian_pyramid import filterGaussianPyramids, getGaussianPyramids
@@ -170,11 +172,11 @@ class EVMModeEnum(Enum):
 
 
 def magnifyVideo(
-    images: npt.NDArray,
+    images: list[cv2.typing.MatLike],
     fps: int,
     magnificationParams: dict = {},
     mode=EVMModeEnum.GAUSSIAN,
-):
+)->list[cv2.typing.MatLike]:
     magnificationParams["fps"] = fps
 
     magnificationParams["kernel"] = (
@@ -219,6 +221,24 @@ def magnifyVideo(
         output_video = laplacian_evm(**magnificationParams)
         return output_video
 
+def magnifyVideoWithFreqSteps(
+    frames: list[cv2.typing.MatLike], fps: float, frequencyRangeSteps: int
+):
+    magnifiedVideos = []
+    for i in range(frequencyRangeSteps):
+        magnifiedVideo = magnifyVideo(
+            np.array(frames),
+            fps,
+            {
+                "freq_range": [
+                    0.833 + i * 0.167 / (frequencyRangeSteps / 4),
+                    1 + i * 0.167 / (frequencyRangeSteps / 4),
+                ],
+            },
+        )
+        magnifiedVideos.append(magnifiedVideo)
+
+    return magnifiedVideos
 
 if __name__ == "__main__":
     main()

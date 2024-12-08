@@ -72,14 +72,7 @@ def putProgressBar(
     )
 
 
-def putHints(uiFrame: cv2.typing.MatLike, lineWidth: int = 1):
-    hints = (
-        "Q - Close window",
-        "F - get pulse wave from face",
-        "H - get pulse wave from hand",
-        "B - get pulse wave from both",
-        "I - show/hide hints",
-    )
+def putHints(uiFrame: cv2.typing.MatLike,hints:list[str], lineWidth: int = 1):
     for i in range(len(hints)):
         hint = hints[i]
         cv2.putText(
