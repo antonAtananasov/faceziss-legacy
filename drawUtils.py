@@ -1,5 +1,6 @@
 import cv2
 
+
 def putBbox(
     frame: cv2.typing.MatLike,
     rect: tuple[int, int, int, int],
@@ -69,3 +70,25 @@ def putProgressBar(
         color_bgr,
         thickness=linewidth,
     )
+
+
+def putHints(uiFrame: cv2.typing.MatLike, lineWidth: int = 1):
+    hints = (
+        "Q - Close window",
+        "F - get pulse wave from face",
+        "H - get pulse wave from hand",
+        "B - get pulse wave from both",
+        "I - show/hide hints",
+    )
+    for i in range(len(hints)):
+        hint = hints[i]
+        cv2.putText(
+            uiFrame,
+            hint,
+            (5 * lineWidth, 15 * (i + 1) + 5 * lineWidth),
+            0,
+            lineWidth / 2,
+            [0, 0, 0],
+            thickness=lineWidth,
+            lineType=cv2.LINE_AA,
+        )

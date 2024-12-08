@@ -9,59 +9,27 @@ import time
 from pulseDetectziss import PulseDetector
 from bboxExtractor import BboxExtractor
 import os
-from drawUtils import putProgressBar, drawTargets
+from drawUtils import putProgressBar, drawTargets, putHints
 from evm import magnifyVideo, EVMModeEnum
 from fileUtils import generateLineStrip, saveFrames, loadVideo
 from multiprocessing import Process, Manager
-import matplotlib.pyplot as plt
+from plotUtils import plotChannelFFT, plotChannelIntensity
 
-
-DISPLAY_FPS = True
-FACES_COLOR_BGR = (255, 0, 255)
-HANDS_COLOR_BGR = (0, 255, 255)
-PROGRESS_BAR_COLOR_BGR = (0, 255, 0)
-WINDOW_WIDTH = 640
-WINDOW_HEIGHT = 480
-CAMERA_FPS = 30
-PROCESSING_WIDTH = 320
-PROCESSING_HEIGHT = 240
-UI_LINE_WIDTH = 1
-SAMPLING_PERIOD = 3.0  # in seconds
-RECORDINGS_PATH = "../Recordings/"
-
-
-def showChannelIntensityPlot(
-    images: list[cv2.typing.MatLike], fps: float, plotTitle: str
-):
-    plt.style.use("dark_background")
-    fig, ax = plt.subplots()
-
-    sumImage = np.sum(images, axis=0)
-    if len(sumImage.shape) != 3 or sumImage.shape[2] != 3:
-        raise Exception("image must contain three color chanels")
-    b, g, r = (
-        np.array(sumImage)[:, :, 0],
-        np.array(sumImage)[:, :, 1],
-        np.array(sumImage)[:, :, 2],
-    )
-    intensityB, intensityG, intensityR = [
-        np.mean(channel, axis=0) for channel in (b, g, r)
-    ]
-
-    intensityPoints = sumImage.shape[1]
-    timeline = np.linspace(0, intensityPoints / fps, intensityPoints)
-    for channelIntensity, color in (
-        (intensityB, "blue"),
-        (intensityG, "green"),
-        (intensityR, "red"),
-    ):
-        ax.plot(timeline, channelIntensity, color=color)
-
-    plt.title(plotTitle)
-    plt.show()
 
 
 def main():
+    DISPLAY_FPS = True
+    DISPLAY_HINTS = True
+    FACES_COLOR_BGR = (255, 0, 255)
+    HANDS_COLOR_BGR = (0, 255, 255)
+    PROGRESS_BAR_COLOR_BGR = (0, 255, 0)
+    WINDOW_WIDTH = 640  # in pixels
+    WINDOW_HEIGHT = 480  # in pixels
+    CAMERA_FPS = 30 
+    UI_LINE_WIDTH = 1 # in pixels
+    SAMPLING_PERIOD = 3.0  # in seconds
+    RECORDINGS_PATH = "../Recordings/"
+
     if not os.path.isdir(RECORDINGS_PATH):
         raise FileNotFoundError(f"The directory '{RECORDINGS_PATH}' does not exist.")
 
@@ -89,9 +57,15 @@ def main():
             lambda extractor: extractor.setIsRecording(False)
         )
         bboxExtractor.onSuccessHandlers.append(
-            lambda extractor: Process(
-                target=showChannelIntensityPlot,
-                args=[extractor.generateLineStrips(4), CAMERA_FPS, name],
+            lambda extractor, name=name: Process(
+                target=plotChannelIntensity,
+                args=[extractor.generateLineStrips(8), CAMERA_FPS, name],
+            ).start()
+        )
+        bboxExtractor.onSuccessHandlers.append(
+            lambda extractor, name=name: Process(
+                target=plotChannelFFT,
+                args=[extractor.generateLineStrips(8), CAMERA_FPS, name],
             ).start()
         )
 
@@ -117,14 +91,16 @@ def main():
             cv2.putText(
                 uiFrame,
                 f"FPS: {int(fps)}",
-                (30, 440),
+                (5 * UI_LINE_WIDTH, WINDOW_HEIGHT - 15 * UI_LINE_WIDTH),
                 0,
-                1,
+                UI_LINE_WIDTH / 2,
                 [0, 0, 0],
-                thickness=2,
+                thickness=UI_LINE_WIDTH,
                 lineType=cv2.LINE_AA,
             )
 
+        if DISPLAY_HINTS:
+            putHints(uiFrame, UI_LINE_WIDTH)
         # draw targets
         drawTargets(uiFrame, faceBboxs, FACES_COLOR_BGR, UI_LINE_WIDTH)
         drawTargets(uiFrame, handBboxs, HANDS_COLOR_BGR, UI_LINE_WIDTH)
@@ -158,9 +134,11 @@ def main():
 
         # keyboard events
         keycode = cv2.waitKey(1) & 0xFF
-        if keycode == ord("f"):
+        if keycode == ord("i"):
+            DISPLAY_HINTS = not DISPLAY_HINTS
+        if keycode == ord("f") or keycode == ord("b"):
             faceBboxExtractor.setIsRecording(not faceBboxExtractor.isRecording)
-        if keycode == ord("h"):
+        if keycode == ord("h") or keycode == ord("b"):
             handBboxExtractor.setIsRecording(not handBboxExtractor.isRecording)
         if keycode == ord("q"):
             break
