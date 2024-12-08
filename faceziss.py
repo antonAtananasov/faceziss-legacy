@@ -10,7 +10,11 @@ from pulseDetectziss import PulseDetector
 from bboxExtractor import BboxExtractor
 import os
 from drawUtils import putProgressBar, drawTargets
-from evm import processVideo
+from evm import magnifyVideo, EVMModeEnum
+from fileUtils import generateLineStrip, saveFrames, loadVideo
+from multiprocessing import Process, Manager
+import matplotlib.pyplot as plt
+
 
 DISPLAY_FPS = True
 FACES_COLOR_BGR = (255, 0, 255)
@@ -22,8 +26,39 @@ CAMERA_FPS = 30
 PROCESSING_WIDTH = 320
 PROCESSING_HEIGHT = 240
 UI_LINE_WIDTH = 1
-SAMPLING_PERIOD = 5.0  # 3.0 in seconds
+SAMPLING_PERIOD = 3.0  # in seconds
 RECORDINGS_PATH = "../Recordings/"
+
+
+def showChannelIntensityPlot(
+    images: list[cv2.typing.MatLike], fps: float, plotTitle: str
+):
+    plt.style.use("dark_background")
+    fig, ax = plt.subplots()
+
+    sumImage = np.sum(images, axis=0)
+    if len(sumImage.shape) != 3 or sumImage.shape[2] != 3:
+        raise Exception("image must contain three color chanels")
+    b, g, r = (
+        np.array(sumImage)[:, :, 0],
+        np.array(sumImage)[:, :, 1],
+        np.array(sumImage)[:, :, 2],
+    )
+    intensityB, intensityG, intensityR = [
+        np.mean(channel, axis=0) for channel in (b, g, r)
+    ]
+
+    intensityPoints = sumImage.shape[1]
+    timeline = np.linspace(0, intensityPoints / fps, intensityPoints)
+    for channelIntensity, color in (
+        (intensityB, "blue"),
+        (intensityG, "green"),
+        (intensityR, "red"),
+    ):
+        ax.plot(timeline, channelIntensity, color=color)
+
+    plt.title(plotTitle)
+    plt.show()
 
 
 def main():
@@ -39,95 +74,29 @@ def main():
 
     faceDetector = FaceDetector()
     handDetector = HandDetector()
+
     faceBboxExtractor: BboxExtractor = BboxExtractor(SAMPLING_PERIOD, CAMERA_FPS)
     handBboxExtractor: BboxExtractor = BboxExtractor(SAMPLING_PERIOD, CAMERA_FPS)
-    # faceBboxExtractor.onSuccessHandlers.append(
-    #     lambda extractor: extractor.saveFrames(
-    #         os.path.join(RECORDINGS_PATH, f"face_{time.time()}.mp4")
-    #     )
-    # )
-    faceBboxExtractor.onSuccessHandlers.append(
-        lambda extractor: extractor.saveFrames(
-            os.path.join(RECORDINGS_PATH, f"face_{time.time()}.mp4"),
-            processVideo(
-                np.array(extractor.getFrames()),
-                extractor.fps,
-                {"freq_range": [0.833 , 1]},
-            ),
+
+    for bboxExtractor, name in [
+        (faceBboxExtractor, "FacePulse"),
+        (handBboxExtractor, "HandPulse"),
+    ]:
+        bboxExtractor.onSuccessHandlers.append(
+            lambda extractor: extractor.setIsRecording(False)
         )
-    )
-    faceBboxExtractor.onSuccessHandlers.append(
-        lambda extractor: extractor.saveFrames(
-            os.path.join(RECORDINGS_PATH, f"face_{time.time()}.mp4"),
-            processVideo(
-                np.array(extractor.getFrames()),
-                extractor.fps,
-                {"freq_range": [0.833+.167 , 1+.167]},
-            ),
+        bboxExtractor.onSuccessHandlers.append(
+            lambda extractor: extractor.setIsRecording(False)
         )
-    )
-    faceBboxExtractor.onSuccessHandlers.append(
-        lambda extractor: extractor.saveFrames(
-            os.path.join(RECORDINGS_PATH, f"face_{time.time()}.mp4"),
-            processVideo(
-                np.array(extractor.getFrames()),
-                extractor.fps,
-                {"freq_range": [0.833+.167+.167 , 1+.167+.167]},
-            ),
+        bboxExtractor.onSuccessHandlers.append(
+            lambda extractor: Process(
+                target=showChannelIntensityPlot,
+                args=[extractor.generateLineStrips(4), CAMERA_FPS, name],
+            ).start()
         )
-    )
-    faceBboxExtractor.onSuccessHandlers.append(
-        lambda extractor: extractor.saveFrames(
-            os.path.join(RECORDINGS_PATH, f"face_{time.time()}.mp4"),
-            processVideo(
-                np.array(extractor.getFrames()),
-                extractor.fps,
-                {"freq_range": [0.833+.167+.167+.167 , 1+.167+.167+.167]},
-            ),
-        )
-    )
-    faceBboxExtractor.onSuccessHandlers.append(
-        lambda extractor: extractor.saveFrames(
-            os.path.join(RECORDINGS_PATH, f"face_{time.time()}.mp4"),
-            processVideo(
-                np.array(extractor.getFrames()),
-                extractor.fps,
-                {"freq_range": [0.833+.167+.167+.167+.167 , 1+.167+.167+.167+.167]},
-            ),
-        )
-    )
-    faceBboxExtractor.onSuccessHandlers.append(
-        lambda extractor: extractor.saveFrames(
-            os.path.join(RECORDINGS_PATH, f"face_{time.time()}.mp4"),
-            processVideo(
-                np.array(extractor.getFrames()),
-                extractor.fps,
-                {"freq_range": [0.833 +.167+.167+.167+.167+.167, 1+.167+.167+.167+.167+.167]},
-            ),
-        )
-    )
-    faceBboxExtractor.onSuccessHandlers.append(
-        lambda extractor: extractor.saveFrames(
-            os.path.join(RECORDINGS_PATH, f"face_{time.time()}.mp4"),
-            processVideo(
-                np.array(extractor.getFrames()),
-                extractor.fps,
-                {"freq_range": [0.833 +.167+.167+.167+.167+.167+.167, 1+.167+.167+.167+.167+.167+.167]},
-            ),
-        )
-    )
-    handBboxExtractor.onSuccessHandlers.append(
-        lambda extractor: extractor.saveFrames(
-            os.path.join(RECORDINGS_PATH, f"hand_{time.time()}.mp4")
-        )
-    )
 
     webcam.set(3, realWidth)
     webcam.set(4, realHeight)
-
-    lastFrameHadHand = False
-    handFoundTimestamp = 0
-    handFrames = []
 
     prevFrameTime = time.time()
     while True:
@@ -162,9 +131,7 @@ def main():
 
         # Face extraction
         faceBboxExtractor.loop(camFrame, faceBboxs)
-        if len(faceBboxs) == 1:
-            # TODO: make prettier
-            # TODO: fix len(facebboxs)
+        if faceBboxs and faceBboxExtractor.isRecording:
             putProgressBar(
                 uiFrame,
                 faceBboxs[0]["bbox"],
@@ -176,7 +143,7 @@ def main():
 
         # Hand extraction
         handBboxExtractor.loop(camFrame, handBboxs)
-        if len(handBboxs) == 1:
+        if handBboxs and handBboxExtractor.isRecording:
             putProgressBar(
                 uiFrame,
                 handBboxs[0]["bbox"],
@@ -189,7 +156,13 @@ def main():
         # imgStack = cvzone.stackImages([uiFrame, camFrame], 2, 1)
         cv2.imshow("Faceziss", uiFrame)
 
-        if cv2.waitKey(1) & 0xFF == ord("q"):
+        # keyboard events
+        keycode = cv2.waitKey(1) & 0xFF
+        if keycode == ord("f"):
+            faceBboxExtractor.setIsRecording(not faceBboxExtractor.isRecording)
+        if keycode == ord("h"):
+            handBboxExtractor.setIsRecording(not handBboxExtractor.isRecording)
+        if keycode == ord("q"):
             break
 
     webcam.release()

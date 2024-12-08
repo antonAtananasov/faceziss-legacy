@@ -2,7 +2,8 @@ import time
 import cv2
 import numpy as np
 from typing import Callable
-
+from fileUtils import saveFrames, generateLineStrip
+from evm import magnifyVideo
 
 class BboxExtractor:
     def __init__(self, requiredTime: float = 3, fps:int=30):
@@ -17,13 +18,17 @@ class BboxExtractor:
         self.fps:int=fps
         self._lastFrameHadBbox = False
         self.onSuccessHandlers: list[Callable[[BboxExtractor],None]] = []
+        self.isRecording:bool=False
+
+    def setIsRecording(self, value:bool):
+        self.isRecording = value
 
     def loop(self, frame: cv2.typing.MatLike, bboxs):
-        currentFrameHasBbox = len(bboxs) == 1
+        currentFrameHasBbox = len(bboxs) == 1 and self.isRecording
         if not self._lastFrameHadBbox and currentFrameHasBbox:
             self._bboxFoundTimestamp = time.time()
 
-        if time.time() - self._bboxFoundTimestamp >= self.requiredTime:
+        if time.time() - self._bboxFoundTimestamp >= self.requiredTime and self.isRecording:
             for eventHandler in self.onSuccessHandlers:
                 eventHandler(self)
 
@@ -82,24 +87,26 @@ class BboxExtractor:
         else:
             return frames
 
-    def saveFrames(self, fileName:str,frames:list[cv2.typing.MatLike]=None):
-        if frames is None:
-            frames = self.getFrames()
+    def saveFrames(self, fileName:str):            
+        saveFrames(fileName, frames = self.getFrames(),fps=self.fps)
 
-        try:
-            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-            size =list(frames[0].shape[:2])
-            size.reverse()
-            size = tuple(size)
-            videoWriter = cv2.VideoWriter(fileName, fourcc, self.fps, size)
+    def generateLineStrips(self, steps: int) -> list[cv2.typing.MatLike]:
+        stripImages = []
+        for i in range(steps):
+            magnifiedVideo = magnifyVideo(
+                np.array(self.getFrames()),
+                self.fps,
+                {
+                    "freq_range": [
+                        0.833 + i * 0.167 / (steps / 4),
+                        1 + i * 0.167 / (steps / 4),
+                    ],
+                },
+            )
 
-            for i in range(len(frames)):
-                croppedFrame = frames[i]
-                videoWriter.write(croppedFrame)
+            strip = generateLineStrip(
+                magnifiedVideo,
+            )
 
-            videoWriter.release()
-
-            print(f"Saved {fileName}")
-
-        except Exception as e:
-            print("Could not save video: " + str(e))
+            stripImages.append(strip)
+        return stripImages
