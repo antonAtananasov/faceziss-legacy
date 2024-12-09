@@ -16,6 +16,7 @@ from utilziss.plotUtils import (
     plotChannelIntensity,
     calculateChannelIntensity,
     calculateCorrelation,
+    calculateCorrelationMatch,
 )
 from utilziss.fileUtils import saveFrames
 from pulselib.getPulse import PulseExtractor
@@ -39,7 +40,7 @@ def main():
     UI_TEXT_COLOR = (0, 0, 0)
     DANGER_COLOR_BGR = (0, 0, 255)
     SUCCESS_COLOR_BGR = (0, 255, 0)
-    WARNING_COLOR_BGR = (0, 252, 135)
+    WARNING_COLOR_BGR = (0, 135, 252)
     RED_MATCH_THRESHOLD, GREEN_MATCH_THRESHOLD, BLUE_MATCH_THRESHOLD = (
         0.8,
         0.0,
@@ -48,7 +49,7 @@ def main():
     WINDOW_WIDTH = 1280  # in pixels
     WINDOW_HEIGHT = 720  # in pixels
     PROCESSING_MAX_PIXELS = (
-        100 * 100
+        80 * 80
     )  # maximum amount of pixels to be used to rescale samples for magnification
     CAMERA_FPS = 30
     UI_LINE_WIDTH = 1  # in pixels
@@ -182,6 +183,8 @@ def main():
                 PROGRESS_BAR_COLOR_BGR,
                 UI_LINE_WIDTH,
             )
+        if len(faceBboxs) != 1:
+            faceBboxExtractor.setIsRecording(False)
         # End Face extraction
 
         # Begin Hand extraction
@@ -194,26 +197,28 @@ def main():
                 PROGRESS_BAR_COLOR_BGR,
                 UI_LINE_WIDTH,
             )
+        if len(handBboxs) != 1:
+            handBboxExtractor.setIsRecording(False)
+
         # End Hand extraction
 
         # Begin Correlation
-        if all(
-            [
-                key in recordedIntensities.keys()
-                for key in [faceIdentificatorName, handIdentificatorName]
-            ]
+        if (
+            faceIdentificatorName in recordedIntensities.keys()
+            and handIdentificatorName in recordedIntensities.keys()
+        ) and (
+            len(recordedIntensities[faceIdentificatorName][0])
+            == len(recordedIntensities[handIdentificatorName][0])
         ):
             channelCorrelCoefs = calculateCorrelation(
                 recordedIntensities[faceIdentificatorName],
                 recordedIntensities[handIdentificatorName],
             )
-            b, g, r = np.abs(channelCorrelCoefs)
-            recordedIntensitiesCorrelate = (
-                r > RED_MATCH_THRESHOLD
-                and g > GREEN_MATCH_THRESHOLD
-                and b > BLUE_MATCH_THRESHOLD
+            recordedIntensitiesCorrelate = calculateCorrelationMatch(
+                (RED_MATCH_THRESHOLD, GREEN_MATCH_THRESHOLD, BLUE_MATCH_THRESHOLD),
+                channelCorrelCoefs,
+                True,
             )
-            print(channelCorrelCoefs, recordedIntensitiesCorrelate)
             recordedIntensities.clear()
 
         correlationMatchText = (
@@ -237,6 +242,7 @@ def main():
             thickness=UI_LINE_WIDTH,
             lineType=cv2.LINE_AA,
         )
+        # End Correlation
 
         pulseExtractor.loop(
             camFrame[
@@ -255,6 +261,7 @@ def main():
 
         if keycode == ord("p"):
             pulseExtractor.toggle_display_plot()
+            pulseExtractor.resetPlot()
 
         if keycode == ord("f"):
             if len(faceBboxs) == 1:
@@ -263,12 +270,13 @@ def main():
                 print("Target not on screen or too many targets!")
 
         if keycode == ord("h"):
-            if len(handBboxExtractor) == 1:
+            if len(handBboxs) == 1:
                 handBboxExtractor.setIsRecording(not handBboxExtractor.isRecording)
             else:
                 print("Target not on screen or too many targets!")
 
         if keycode == ord("b"):
+            recordedIntensities.clear()
             if len(faceBboxs) == 1 and len(handBboxs) == 1:
                 faceBboxExtractor.setIsRecording(not faceBboxExtractor.isRecording)
                 handBboxExtractor.setIsRecording(not handBboxExtractor.isRecording)

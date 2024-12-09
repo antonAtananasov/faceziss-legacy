@@ -53,6 +53,22 @@ def calculateChannelFrequencies(
     return fftB, fftG, fftR
 
 
+def calculateLinearRegression(x: npt.NDArray, y: npt.NDArray = None) -> npt.NDArray:
+    n = x.size
+    if y == None:
+        y = np.linspace(0, n, n)
+    productSum = np.sum(np.multiply(x, y))
+    sumX = np.sum(x)
+    sumY = np.sum(y)
+    sumXSquared = np.sum(np.multiply(x, x))
+
+    alpha = (n * productSum - sumX * sumY) / (n * sumXSquared - sumX**2)
+    beta = (sumY - alpha * sumX) / n
+
+    regression = alpha * np.linspace(y[0], y[-1], n) + beta
+    return (regression - np.average(regression)) / 4 + np.average(x)
+
+
 def plotChannelIntensity(
     intensityB: npt.NDArray,
     intensityG: npt.NDArray,
@@ -71,6 +87,13 @@ def plotChannelIntensity(
         (intensityG, "green"),
         (intensityR, "red"),
     ):
+        regression = calculateLinearRegression(channelIntensity)
+        ax.plot(
+            timeline,
+            regression,
+            "--",
+            color="dark" + color,
+        )
         ax.plot(timeline, channelIntensity, color=color)
 
     ax.set_xlabel("Time, [s]")
@@ -122,12 +145,39 @@ def plotChannelFrequencies(
     plt.title(plotTitle)
     plt.show()
 
-def calculateCorrelation(intensitiesA:tuple[npt.NDArray,npt.NDArray,npt.NDArray],intensitiesB:tuple[npt.NDArray,npt.NDArray,npt.NDArray])->tuple[int,int,int]:
-    if len(intensitiesA) !=3 or len(intensitiesB) !=3:
-        raise ValueError('Intensities should have 3 channels')
+
+def calculateCorrelation(
+    intensitiesA: tuple[npt.NDArray, npt.NDArray, npt.NDArray],
+    intensitiesB: tuple[npt.NDArray, npt.NDArray, npt.NDArray],
+) -> tuple[int, int, int]:
+    if len(intensitiesA) != 3 or len(intensitiesB) != 3:
+        raise ValueError("Intensities should have 3 channels")
     coeffs = []
     for i in range(len(intensitiesA)):
-        coeff = np.corrcoef(intensitiesA[i],intensitiesB[i])[0,-1]
+        coeff = np.corrcoef(intensitiesA[i], intensitiesB[i])[0, -1]
         coeffs.append(coeff)
-    b,g,r = coeffs
-    return b,g,r
+    b, g, r = coeffs
+    return b, g, r
+
+
+def calculateCorrelationMatch(
+    expectedCorrelationCoeffs: tuple[float, float, float],
+    receivedCorrelCoefs: tuple[float, float, float],
+    doPrint: bool = False,
+) -> tuple[bool, float]:
+    (b, g, r), (eb, eg, er) = (
+        np.abs(receivedCorrelCoefs),
+        np.abs(expectedCorrelationCoeffs),
+    )
+    isMatch = r >= er and g >= eg and b >= eb
+
+    if doPrint:
+        print(
+            "Channel correlation coefficients (r,g,b):",
+            tuple(np.round(receivedCorrelCoefs[::-1], 2)),
+            "Required:",
+            tuple(expectedCorrelationCoeffs[::-1]),
+            "Match:",
+            isMatch,
+        )
+    return isMatch

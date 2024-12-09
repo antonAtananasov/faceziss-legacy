@@ -67,6 +67,11 @@ class PulseExtractor(object):
             bg=self.processor.slices[0],
         )
 
+    def resetPlot(self):
+        self.processor.data_buffer = [
+            self.processor.data_buffer[-1] for _ in self.processor.data_buffer
+        ]
+        self.processor.times = [self.processor.times[-1] for _ in self.processor.times]
 
     def loop(self, frame: cv2.typing.MatLike):
         """
