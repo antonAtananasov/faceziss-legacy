@@ -1,8 +1,7 @@
 import numpy as np
 import tqdm
 
-from processing import idealTemporalBandpassFilter, pyrDown, pyrUp, rgb2yiq
-
+from evmlib.processing import idealTemporalBandpassFilter, pyrDown, pyrUp, rgb2yiq
 
 def generateGaussianPyramid(image, kernel, level):
     image_shape = [image.shape[:2]]

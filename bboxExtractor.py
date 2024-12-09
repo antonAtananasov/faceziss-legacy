@@ -2,8 +2,7 @@ import time
 import cv2
 import numpy as np
 from typing import Callable
-from fileUtils import saveFrames
-from evm import magnifyVideo
+from utilziss.fileUtils import saveFrames
 
 class BboxExtractor:
     def __init__(self, requiredTime: float = 3, fps:int=30):

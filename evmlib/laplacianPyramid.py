@@ -2,7 +2,7 @@ import numpy as np
 import tqdm
 from scipy.signal import butter
 
-from processing import pyrDown, pyrUp, rgb2yiq
+from evmlib.processing import pyrDown, pyrUp, rgb2yiq
 
 
 def generateLaplacianPyramid(image, kernel, level):

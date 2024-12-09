@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import tqdm
 
-from constants import rgb_from_yiq, yiq_from_rgb
+from evmlib.constants import rgb_from_yiq, yiq_from_rgb
 
 
 def rgb2yiq(rgb_image):

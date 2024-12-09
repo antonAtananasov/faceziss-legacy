@@ -1,5 +1,5 @@
 import cv2
-
+import time
 
 def putBbox(
     frame: cv2.typing.MatLike,
@@ -85,3 +85,22 @@ def putHints(uiFrame: cv2.typing.MatLike,hints:list[str], lineWidth: int = 1):
             thickness=lineWidth,
             lineType=cv2.LINE_AA,
         )
+
+def putFps(
+    frame: cv2.typing.MatLike,
+    prevFrameTime: float,
+    color_bgr: tuple[int, int, int],
+    lineWidth: int = 1,
+):
+    fps = 1 / (time.time() - prevFrameTime)
+    frameHeight = frame.shape[0]
+    cv2.putText(
+        frame,
+        f"FPS: {int(fps)}",
+        (5 * lineWidth, frameHeight - 15 * lineWidth),
+        0,
+        lineWidth / 2,
+        color_bgr,
+        thickness=lineWidth,
+        lineType=cv2.LINE_AA,
+    )

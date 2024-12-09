@@ -8,22 +8,24 @@ from cvzone.FaceDetectionModule import FaceDetector
 from cvzone.HandTrackingModule import HandDetector
 
 from bboxExtractor import BboxExtractor
-from drawUtils import putProgressBar, drawTargets, putHints
-from evm import magnifyVideoWithFreqSteps
-from imageUtils import generateLineStrip, compressImages
+from utilziss.drawUtils import putProgressBar, drawTargets, putHints, putFps
+from evmlib.evm import magnifyVideoWithFreqSteps
+from utilziss.imageUtils import generateLineStrip, compressImages
 from multiprocessing import Process
-from plotUtils import (
+from utilziss.plotUtils import (
     plotChannelIntensity,
     calculateChannelIntensity,
     calculateCorrelation,
 )
-from fileUtils import saveFrames
+from utilziss.fileUtils import saveFrames
+from pulselib.getPulse import PulseExtractor
 
 USAGE_HINTS = (
     "Q - Close window",
     "F - get pulse wave from face",
     "H - get pulse wave from hand",
     "B - get pulse wave from both",
+    "P - get pulse wave from finger",
     "I - show/hide hints",
 )
 
@@ -34,10 +36,14 @@ def main():
     FACES_COLOR_BGR = (255, 0, 255)
     HANDS_COLOR_BGR = (0, 255, 255)
     PROGRESS_BAR_COLOR_BGR = (0, 255, 0)
+    UI_TEXT_COLOR = (0, 0, 0)
+    DANGER_COLOR_BGR = (0, 0, 255)
+    SUCCESS_COLOR_BGR = (0, 255, 0)
+    WARNING_COLOR_BGR = (0, 252, 135)
     RED_MATCH_THRESHOLD, GREEN_MATCH_THRESHOLD, BLUE_MATCH_THRESHOLD = (
-        0.9,
-        0.6,
-        0.1,
+        0.8,
+        0.0,
+        0.7,
     )  # correlation coefficients for succesfull face-to-hand match
     WINDOW_WIDTH = 1280  # in pixels
     WINDOW_HEIGHT = 720  # in pixels
@@ -137,6 +143,9 @@ def main():
             )
         )
 
+    pulseExtractor = PulseExtractor()
+    pulseExtractor.make_bpm_plot()
+
     webcam.set(3, realWidth)
     webcam.set(4, realHeight)
 
@@ -150,7 +159,7 @@ def main():
         # Display FPS
         uiFrame = camFrame.copy()
         if DISPLAY_FPS:
-            putFps(uiFrame, prevFrameTime, UI_LINE_WIDTH)
+            putFps(uiFrame, prevFrameTime, UI_TEXT_COLOR, UI_LINE_WIDTH)
         prevFrameTime = time.time()
 
         if DISPLAY_HINTS:
@@ -206,7 +215,35 @@ def main():
             )
             print(channelCorrelCoefs, recordedIntensitiesCorrelate)
             recordedIntensities.clear()
-        # End Correlation
+
+        correlationMatchText = (
+            f"Hand-Face Match: {'Y' if recordedIntensitiesCorrelate else 'N'}"
+        )
+        cv2.putText(
+            uiFrame,
+            correlationMatchText,
+            (uiFrame.shape[1] - len(correlationMatchText) * 10, uiFrame.shape[0] - 15),
+            0,
+            UI_LINE_WIDTH / 2,
+            (
+                WARNING_COLOR_BGR
+                if faceBboxExtractor.isRecording or handBboxExtractor.isRecording
+                else (
+                    SUCCESS_COLOR_BGR
+                    if recordedIntensitiesCorrelate
+                    else DANGER_COLOR_BGR
+                )
+            ),
+            thickness=UI_LINE_WIDTH,
+            lineType=cv2.LINE_AA,
+        )
+
+        pulseExtractor.loop(
+            camFrame[
+                camFrame.shape[0] // 2 - 20 : camFrame.shape[0] // 2 + 20,
+                camFrame.shape[1] // 2 - 20 : camFrame.shape[1] // 2 + 20,
+            ]
+        )
 
         cv2.imshow("Faceziss", uiFrame)
 
@@ -215,6 +252,9 @@ def main():
 
         if keycode == ord("i"):
             DISPLAY_HINTS = not DISPLAY_HINTS
+
+        if keycode == ord("p"):
+            pulseExtractor.toggle_display_plot()
 
         if keycode == ord("f"):
             if len(faceBboxs) == 1:
@@ -241,21 +281,6 @@ def main():
 
     webcam.release()
     cv2.destroyAllWindows()
-
-
-def putFps(frame: cv2.typing.MatLike, prevFrameTime: float, lineWidth: int = 1):
-    fps = 1 / (time.time() - prevFrameTime)
-    frameHeight = frame.shape[0]
-    cv2.putText(
-        frame,
-        f"FPS: {int(fps)}",
-        (5 * lineWidth, frameHeight - 15 * lineWidth),
-        0,
-        lineWidth / 2,
-        [0, 0, 0],
-        thickness=lineWidth,
-        lineType=cv2.LINE_AA,
-    )
 
 
 if __name__ == "__main__":
