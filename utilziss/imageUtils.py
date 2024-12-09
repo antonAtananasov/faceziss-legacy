@@ -47,7 +47,7 @@ def compressImages(images:list[cv2.typing.MatLike],maxPixels:int):
     w,h,_ = images[0].shape
 
     if w*h <= maxPixels:
-        return images
+        return np.array(images).astype(np.uint8)
 
     else:
         newW = int(round(np.sqrt(maxPixels*w/h)))

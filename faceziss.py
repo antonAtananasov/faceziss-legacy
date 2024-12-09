@@ -20,14 +20,22 @@ from utilziss.plotUtils import (
 )
 from utilziss.fileUtils import saveFrames
 from pulselib.getPulse import PulseExtractor
+from utilziss.faceEncodingUtils import (
+    generateFaceEncoding,
+    saveFaceEncodings,
+    loadFaceEncodings,
+    compareFaces,
+)
 
 USAGE_HINTS = (
     "Q - Close window",
-    "F - get pulse wave from face",
-    "H - get pulse wave from hand",
-    "B - get pulse wave from both",
-    "P - get pulse wave from finger",
-    "I - show/hide hints",
+    "F - Get pulse wave from face",
+    "H - Get pulse wave from hand",
+    "B - Get pulse wave from both",
+    "P - Get pulse wave from finger",
+    "E - Get face encoding",
+    "R - Register face encoding",
+    "I - Show/hide hints",
 )
 
 
@@ -42,10 +50,11 @@ def main():
     SUCCESS_COLOR_BGR = (0, 255, 0)
     WARNING_COLOR_BGR = (0, 135, 252)
     RED_MATCH_THRESHOLD, GREEN_MATCH_THRESHOLD, BLUE_MATCH_THRESHOLD = (
-        0.8,
-        0.0,
         0.7,
+        0.0,
+        0.6,
     )  # correlation coefficients for succesfull face-to-hand match
+    FACE_MATCH_TOLERANCE = 0.6  # face biometric match tolerance = 1 - threshold
     WINDOW_WIDTH = 1280  # in pixels
     WINDOW_HEIGHT = 720  # in pixels
     PROCESSING_MAX_PIXELS = (
@@ -148,6 +157,11 @@ def main():
     pulseExtractor = PulseExtractor(ENCODINGS_PATH)
     pulseExtractor.make_bpm_plot()
 
+    knownFaceEncodings: dict[str, list] = loadFaceEncodings(
+        os.path.join(ENCODINGS_PATH, "knownFaceEncodings.bin")
+    )
+    successfullMatchingFaces = []
+
     webcam.set(3, realWidth)
     webcam.set(4, realHeight)
 
@@ -223,7 +237,7 @@ def main():
             recordedIntensities.clear()
 
         correlationMatchText = (
-            f"Hand-Face Match: {'Y' if recordedIntensitiesCorrelate else 'N'}"
+            f"Hand-Face Match: {'Yes' if recordedIntensitiesCorrelate else 'No'}"
         )
         cv2.putText(
             uiFrame,
@@ -245,12 +259,32 @@ def main():
         )
         # End Correlation
 
+        # Begin Finger pulse extraction
         pulseExtractor.loop(
             camFrame[
                 camFrame.shape[0] // 2 - 20 : camFrame.shape[0] // 2 + 20,
                 camFrame.shape[1] // 2 - 20 : camFrame.shape[1] // 2 + 20,
             ]
         )
+        # End Finger pulse extraction
+        recognitionMatchText = f"Matched face: {','.join(successfullMatchingFaces) if successfullMatchingFaces else 'None'}"
+        cv2.putText(
+            uiFrame,
+            recognitionMatchText,
+            (
+                uiFrame.shape[1] - (len(recognitionMatchText)-1) * 10,
+                uiFrame.shape[0] - 15 * 2,
+            ),
+            0,
+            UI_LINE_WIDTH / 2,
+            (SUCCESS_COLOR_BGR if successfullMatchingFaces else DANGER_COLOR_BGR),
+            thickness=UI_LINE_WIDTH,
+            lineType=cv2.LINE_AA,
+        )
+
+        # Begin Face Recognition
+
+        # End Face Recognition
 
         cv2.imshow("Faceziss", uiFrame)
 
@@ -297,6 +331,66 @@ def main():
                 handBboxExtractor.setIsRecording(not handBboxExtractor.isRecording)
             else:
                 print("Targets not on screen or too many targets!")
+
+        if keycode == ord("e") or keycode == ord("r"):
+            if len(faceBboxs) == 1:
+                x, y, w, h = faceBboxs[0]["bbox"]
+                faceFrame = camFrame[
+                    np.clip(y, 0, camFrame.shape[0]) : np.clip(
+                        y + h, 0, camFrame.shape[0]
+                    ),
+                    np.clip(x, 0, camFrame.shape[1]) : np.clip(
+                        x + w, 0, camFrame.shape[1]
+                    ),
+                ]
+                compressedFaceFrame = compressImages(
+                    [faceFrame], PROCESSING_MAX_PIXELS * 2
+                )[0]
+                _, faceEncodings = generateFaceEncoding(compressedFaceFrame)
+                if faceEncodings:
+                    faceEncoding = faceEncodings[0]
+                    if RECORD_OUTPUTS:
+                        np.savetxt(
+                            os.path.join(
+                                RECORDINGS_PATH, f"faceCode_{time.time()}.csv"
+                            ),
+                            faceEncoding,
+                            delimiter=",",
+                        )
+                        binaryEncodingsPath = os.path.join(
+                            RECORDINGS_PATH, f"faceCode_{time.time()}.bin"
+                        )
+                        saveFaceEncodings(
+                            binaryEncodingsPath, {"CurrentUser": [faceEncoding]}
+                        )
+
+                    comparisons = compareFaces(
+                        knownFaceEncodings, faceEncoding, FACE_MATCH_TOLERANCE
+                    )
+                    print(comparisons)
+                    acceptedSubjects = [
+                        subject
+                        for subject, comparisonValues in comparisons.items()
+                        if any(comparisonValues)
+                    ]
+                    successfullMatchingFaces = acceptedSubjects
+
+                    if keycode == ord("r"):
+                        subjectName = input("Enter Subject Name: ")
+                        if subjectName:
+                            if subjectName in knownFaceEncodings:
+                                knownFaceEncodings[subjectName].append(faceEncoding)
+                            else:
+                                knownFaceEncodings[subjectName] = [faceEncoding]
+                    saveFaceEncodings(
+                        os.path.join(ENCODINGS_PATH, "knownFaceEncodings.bin"),
+                        knownFaceEncodings,
+                    )
+
+                else:
+                    print("Unable to track face!")
+            else:
+                print("Target not on screen or too many targets!")
 
         if keycode == ord("q"):
             break

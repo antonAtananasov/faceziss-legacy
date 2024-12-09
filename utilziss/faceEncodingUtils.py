@@ -3,6 +3,9 @@ import face_recognition
 import pickle
 from typing import Dict, Any
 import cv2
+import numpy.typing as npt
+import numpy as np
+import os
 
 
 def generateFaceEncoding(
@@ -36,7 +39,23 @@ def saveFaceEncodings(outputFilePath: str, name_encodings: Dict) -> None:
 
 
 def loadFaceEncodings(encodingsFilePath: str) -> Dict:
+    if not os.path.exists(encodingsFilePath):
+        return {}
     loadedEncodings = None
     with open(encodingsFilePath, mode="rb") as f:
         loadedEncodings = pickle.load(f)
     return loadedEncodings
+
+
+def compareFaces(
+    knownEncodings: dict, encodingToCheck: npt.NDArray, tolerance: float = 0.6
+) -> dict[str,list[bool]]:
+    compareSubjects = {}
+    for subject, encodings in knownEncodings.items():
+        compareResults = face_recognition.compare_faces(
+            encodings, encodingToCheck, tolerance
+        )
+
+        compareSubjects[subject] = compareResults
+    # requires all values to be under the tolerance
+    return compareSubjects
