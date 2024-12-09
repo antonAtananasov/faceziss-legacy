@@ -17,10 +17,14 @@ def resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 
-class findFaceGetPulse(object):
+class PulseFinder(object):
 
     def __init__(
-        self, bpm_limits=[], data_spike_limit=250, face_detector_smoothness=10
+        self,
+        encodingsPath: str,
+        bpm_limits=[],
+        data_spike_limit=250,
+        face_detector_smoothness=10,
     ):
 
         self.frame_in = np.zeros((10, 10))
@@ -38,12 +42,14 @@ class findFaceGetPulse(object):
         self.t0 = time.time()
         self.bpms = []
         self.bpm = 0
-        dpath = resource_path("cascades/haarcascade_frontalface_alt.xml")
+        dpath = resource_path(
+            os.path.join(encodingsPath, "haarcascade_frontalface_alt.xml")
+        )
         if not os.path.exists(dpath):
             print("Cascade file not present!")
         self.face_cascade = cv2.CascadeClassifier(dpath)
 
-        self.face_rect = [1, 1, 2, 2]
+        self.rectOfInterest = [1, 1, 2, 2]
         self.last_center = np.array([0, 0])
         self.last_wh = np.array([0, 0])
         self.output_dim = 13
@@ -68,7 +74,7 @@ class findFaceGetPulse(object):
         return shift
 
     def get_subface_coord(self, fh_x, fh_y, fh_w, fh_h):
-        x, y, w, h = self.face_rect
+        x, y, w, h = self.rectOfInterest
         return [
             int(x + w * fh_x - (w * fh_w / 2.0)),
             int(y + h * fh_y - (h * fh_h / 2.0)),
@@ -118,18 +124,15 @@ class findFaceGetPulse(object):
         self.times.append(time.time() - self.t0)
         self.frame_out = self.frame_in
         self.gray = cv2.equalizeHist(cv2.cvtColor(self.frame_in, cv2.COLOR_BGR2GRAY))
-        if True:  # self.find_faces:
+        self.trained = False
+        self.rectOfInterest = (0, 0, self.frame_in.shape[1], self.frame_in.shape[0])
 
-            self.trained = False
-            self.face_rect = (0, 0, self.frame_in.shape[1], self.frame_in.shape[0])
-            forehead1 = self.face_rect
-
-        if set(self.face_rect) == set([1, 1, 2, 2]):
+        if set(self.rectOfInterest) == set([1, 1, 2, 2]):
             return
 
-        forehead1 = self.get_subface_coord(0.5, 0.18, 0.25, 0.15)
+        # self.rectOfInterest = self.get_subface_coord(0.5, 0.18, 0.25, 0.15)
 
-        vals = self.get_subface_means(forehead1)
+        vals = self.get_subface_means(self.rectOfInterest)
 
         self.data_buffer.append(vals)
         L = len(self.data_buffer)
@@ -190,7 +193,7 @@ class findFaceGetPulse(object):
             )
             b = alpha * self.frame_in[y : y + h, x : x + w, 2]
             self.frame_out[y : y + h, x : x + w] = cv2.merge([r, g, b])
-            x1, y1, w1, h1 = self.face_rect
+            x1, y1, w1, h1 = self.rectOfInterest
             self.slices = [np.copy(self.frame_out[y1 : y1 + h1, x1 : x1 + w1, 1])]
             # self.bpms.append(bpm)
             # self.ttimes.append(time.time())

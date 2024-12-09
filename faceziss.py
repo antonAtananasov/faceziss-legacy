@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from cvzone.FaceDetectionModule import FaceDetector
 from cvzone.HandTrackingModule import HandDetector
 
-from bboxExtractor import BboxExtractor
+from utilziss.bboxExtractorUtils import BboxExtractor
 from utilziss.drawUtils import putProgressBar, drawTargets, putHints, putFps
 from evmlib.evm import magnifyVideoWithFreqSteps
 from utilziss.imageUtils import generateLineStrip, compressImages
@@ -54,6 +54,7 @@ def main():
     CAMERA_FPS = 30
     UI_LINE_WIDTH = 1  # in pixels
     SAMPLING_PERIOD = 3.0  # in seconds
+    ENCODINGS_PATH = "./encodings/"
     RECORDINGS_PATH = "../Recordings/"
     RECORD_OUTPUTS = False  # whether to export data used to calculate stuff
 
@@ -144,7 +145,7 @@ def main():
             )
         )
 
-    pulseExtractor = PulseExtractor()
+    pulseExtractor = PulseExtractor(ENCODINGS_PATH)
     pulseExtractor.make_bpm_plot()
 
     webcam.set(3, realWidth)
@@ -261,6 +262,20 @@ def main():
 
         if keycode == ord("p"):
             pulseExtractor.toggle_display_plot()
+            if not pulseExtractor.bpm_plot and RECORD_OUTPUTS:
+                for values, name in (
+                    (pulseExtractor.processor.times, "times"),
+                    (pulseExtractor.processor.samples, "samples"),
+                    (pulseExtractor.processor.freqs, "freqs"),
+                    (pulseExtractor.processor.fft, "fft"),
+                ):
+                    np.savetxt(
+                        os.path.join(
+                            RECORDINGS_PATH, f"finger_{time.time()}_{name}.csv"
+                        ),
+                        values,
+                        delimiter=",",
+                    )
             pulseExtractor.resetPlot()
 
         if keycode == ord("f"):
