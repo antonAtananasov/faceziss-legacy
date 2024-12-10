@@ -6,7 +6,6 @@ import cv2
 import numpy.typing as npt
 import numpy as np
 import os
-from utilziss.encryptUtils import Encryptor
 
 
 def generateFaceEncoding(
@@ -34,12 +33,12 @@ def generateFaceEncodings(trainingPath: str, model="hog") -> Dict:
     return name_encodings
 
 
-def saveFaceEncodings(outputFilePath: str, name_encodings: Dict) -> None:
+def saveSubjectsFaceData(outputFilePath: str, name_encodings: Dict) -> None:
     with open(outputFilePath, mode="wb") as f:
         pickle.dump(name_encodings, f)
 
 
-def loadFaceEncodings(encodingsFilePath: str) -> Dict:
+def loadSubjectsFaceData(encodingsFilePath: str) -> Dict:
     if not os.path.exists(encodingsFilePath):
         return {}
     loadedEncodings = None
@@ -49,12 +48,12 @@ def loadFaceEncodings(encodingsFilePath: str) -> Dict:
 
 
 def compareFaces(
-    knownEncodings: dict, encodingToCheck: npt.NDArray, tolerance: float = 0.6
+    knownEncodings: dict,faceObfuscators: dict, encodingToCheck: npt.NDArray, tolerance: float = 0.6
 ) -> dict[str, list[bool]]:
     compareSubjects = {}
     for subject, encodings in knownEncodings.items():
         compareResults = face_recognition.compare_faces(
-            encodings, encodingToCheck, tolerance
+            encodings, encodingToCheck+faceObfuscators[subject], tolerance
         )
 
         compareSubjects[subject] = compareResults
@@ -62,18 +61,7 @@ def compareFaces(
     return compareSubjects
 
 
-def compareFacesEncrypted(
-    knownEncryptedEncodings: dict,
-    enceyptedEncodingToCheck: npt.NDArray,
-    encryptor: Encryptor,
-    tolerance: float = 0.6,
-) -> dict[str, list[bool]]:
-    compareSubjects = {}
-    for subject, encodings in knownEncryptedEncodings.items():
-        compareResults = encryptor.homomorphicAddition(
-            np.linalg.norm(np.array(encodings), - np.array(enceyptedEncodingToCheck), axis=1)
-        )
-        compareMatches = list(compareResults <= tolerance)
-        compareSubjects[subject] = compareMatches
-    # requires all values to be under the tolerance
-    return compareSubjects
+def generateRandomCancellableTemplate(faceEncoding:np.ndarray)->np.ndarray:
+    templateObduscation = np.random.rand(*faceEncoding.shape)
+    cancellableTemplate = templateObduscation+faceEncoding
+    return templateObduscation, cancellableTemplate

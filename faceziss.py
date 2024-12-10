@@ -22,12 +22,11 @@ from utilziss.fileUtils import saveFrames
 from pulselib.getPulse import PulseExtractor
 from utilziss.faceEncodingUtils import (
     generateFaceEncoding,
-    saveFaceEncodings,
-    loadFaceEncodings,
+    saveSubjectsFaceData,
+    loadSubjectsFaceData,
     compareFaces,
-    compareFacesEncrypted,
+    generateRandomCancellableTemplate,
 )
-from utilziss.encryptUtils import Encryptor
 
 USAGE_HINTS = (
     "Q - Close window",
@@ -67,7 +66,7 @@ def main():
     SAMPLING_PERIOD = 3.0  # in seconds
     ENCODINGS_PATH = "./encodings/"
     RECORDINGS_PATH = "../Recordings/"
-    RECORD_OUTPUTS = False  # whether to export data used to calculate stuff
+    RECORD_OUTPUTS = True  # whether to export data used to calculate stuff
 
     if not os.path.isdir(RECORDINGS_PATH):
         raise FileNotFoundError(f"The directory '{RECORDINGS_PATH}' does not exist.")
@@ -159,12 +158,13 @@ def main():
     pulseExtractor = PulseExtractor(ENCODINGS_PATH)
     pulseExtractor.make_bpm_plot()
 
-    knownFaceEncodings: dict[str, list] = loadFaceEncodings(
-        os.path.join(ENCODINGS_PATH, "knownFaceEncodings.bin")
+    knownFaceEncodings: dict[str, list[float]] = loadSubjectsFaceData(
+        os.path.join(ENCODINGS_PATH, "knownFaceEncodings.enc")
+    )
+    faceObfuscators: dict[str, list[float]] = loadSubjectsFaceData(
+        os.path.join(ENCODINGS_PATH, "knownFaceObfuscators.enc")
     )
     successfullMatchingFaces = []
-
-    encryptor = Encryptor()
 
     webcam.set(3, realWidth)
     webcam.set(4, realHeight)
@@ -364,23 +364,17 @@ def main():
                         binaryEncodingsPath = os.path.join(
                             RECORDINGS_PATH, f"faceCode_{time.time()}.bin"
                         )
-                        saveFaceEncodings(
+                        saveSubjectsFaceData(
                             binaryEncodingsPath, {"CurrentUser": [faceEncoding]}
                         )
 
                     comparisons = compareFaces(
-                        knownFaceEncodings, faceEncoding, FACE_MATCH_TOLERANCE
-                    )
-                    comparison2 = compareFacesEncrypted(
-                        {
-                            sub: [encryptor.encrypt(enc) for enc in encs]
-                            for sub, encs in knownFaceEncodings.items()
-                        },
-                        encryptor.encrypt(faceEncoding),
-                        encryptor,
+                        knownFaceEncodings,
+                        faceObfuscators,
+                        faceEncoding,
                         FACE_MATCH_TOLERANCE,
                     )
-                    print(comparisons, comparison2)
+                    print(comparisons)
                     acceptedSubjects = [
                         subject
                         for subject, comparisonValues in comparisons.items()
@@ -389,16 +383,43 @@ def main():
                     successfullMatchingFaces = acceptedSubjects
 
                     if keycode == ord("r"):
+                        obfuscation, cancellableEncoding = (
+                            generateRandomCancellableTemplate(faceEncoding)
+                        )
                         subjectName = input("Enter Subject Name: ")
                         if subjectName:
                             if subjectName in knownFaceEncodings:
-                                knownFaceEncodings[subjectName].append(faceEncoding)
+                                knownFaceEncodings[subjectName].append(
+                                    cancellableEncoding
+                                )
                             else:
-                                knownFaceEncodings[subjectName] = [faceEncoding]
-                    saveFaceEncodings(
-                        os.path.join(ENCODINGS_PATH, "knownFaceEncodings.bin"),
-                        knownFaceEncodings,
-                    )
+                                knownFaceEncodings[subjectName] = [cancellableEncoding]
+                            faceObfuscators[subjectName] = obfuscation
+                        saveSubjectsFaceData(
+                            os.path.join(ENCODINGS_PATH, "knownFaceEncodings.enc"),
+                            knownFaceEncodings,
+                        )
+                        saveSubjectsFaceData(
+                            os.path.join(ENCODINGS_PATH, "knownFaceObfuscators.enc"),
+                            faceObfuscators,
+                        )
+                        if RECORD_OUTPUTS:
+                            np.savetxt(
+                                os.path.join(
+                                    RECORDINGS_PATH,
+                                    f"{subjectName}_faceCancellableEncoding_{time.time()}.csv",
+                                ),
+                                cancellableEncoding,
+                                delimiter=",",
+                            )
+                            np.savetxt(
+                                os.path.join(
+                                    RECORDINGS_PATH,
+                                    f"{subjectName}_faceObfuscator_{time.time()}.csv",
+                                ),
+                                obfuscation,
+                                delimiter=",",
+                            )
 
                 else:
                     print("Unable to track face!")
