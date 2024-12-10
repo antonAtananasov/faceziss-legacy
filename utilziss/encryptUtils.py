@@ -3,6 +3,7 @@ import numpy as np
 from lightphe.models.Ciphertext import Ciphertext
 from lightphe.models.Tensor import EncryptedTensor
 from fractions import Fraction
+from decimal import Decimal
 
 
 class Encryptor:
@@ -97,7 +98,11 @@ class Encryptor:
                 )
                 for cnum, cdenom in cypherValue
             ]
-            return [num / denom for num, denom in decrypted]
+            npDecrypted = np.array(decrypted)
+            convertToDecimal = np.vectorize(Decimal)
+            nums = convertToDecimal(npDecrypted[:, 0])
+            denoms = convertToDecimal(npDecrypted[:, 1])
+            return [float(num / denom) for num,denom in zip(nums,denoms)]
         else:
             raise TypeError()
 
@@ -132,21 +137,25 @@ class Encryptor:
                 if self.isAllFractions(cypherValue2)
                 else self.floatListToNumDenomTuples(cypherValue2)
             )
-            return [
+            print(
+                "Warning: attempting to perform homomorphic addition on encrypted fractions. This mode only works properly when the second operand is plain fractions"
+            )
+            added = [
                 (
                     (
-                        self.encryptorSystem.create_ciphertext_obj(c1num)
-                        + self.encryptorSystem.create_ciphertext_obj(c2num)
+                        self.encryptorSystem.create_ciphertext_obj(c1num) * c2denom
+                        + self.encryptorSystem.create_ciphertext_obj(c1denom) * c2num
                     ).value,
                     (
-                        self.encryptorSystem.create_ciphertext_obj(c1denom)
-                        + self.encryptorSystem.create_ciphertext_obj(c2denom)
+                        self.encryptorSystem.create_ciphertext_obj(c1denom) * (c2denom)
                     ).value,
                 )
                 for (c1num, c1denom), (c2num, c2denom) in zip(
                     cypherValue1Fractions, cypherValue2Fractions
                 )
             ]
+
+            return added
         else:
             raise TypeError()
 
@@ -206,11 +215,13 @@ class Encryptor:
 e = Encryptor()
 A = [1, 2, 3.14]
 EA = e.encrypt(A)
-B = [1, 2, 4]
+B = [1, 2.1, 4.1]
 EB = e.encrypt(B)
+EC = e.encrypt([4, 5, 6])
 
 EApBm = e.homomorphicMultiplication(EA, B)
-EApBa = e.homomorphicAddition(EA, EB)
+EApBa = e.homomorphicAddition(EA, B)
+# EApBa = e.homomorphicAddition(EA, EC)
 DApBm = e.decrypt(EApBm)
 DApBa = e.decrypt(EApBa)
 f = Fraction(3)
