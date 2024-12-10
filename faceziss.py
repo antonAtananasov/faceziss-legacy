@@ -25,7 +25,9 @@ from utilziss.faceEncodingUtils import (
     saveFaceEncodings,
     loadFaceEncodings,
     compareFaces,
+    compareFacesEncrypted,
 )
+from utilziss.encryptUtils import Encryptor
 
 USAGE_HINTS = (
     "Q - Close window",
@@ -162,6 +164,8 @@ def main():
     )
     successfullMatchingFaces = []
 
+    encryptor = Encryptor()
+
     webcam.set(3, realWidth)
     webcam.set(4, realHeight)
 
@@ -272,7 +276,7 @@ def main():
             uiFrame,
             recognitionMatchText,
             (
-                uiFrame.shape[1] - (len(recognitionMatchText)-1) * 10,
+                uiFrame.shape[1] - (len(recognitionMatchText) - 1) * 10,
                 uiFrame.shape[0] - 15 * 2,
             ),
             0,
@@ -367,7 +371,16 @@ def main():
                     comparisons = compareFaces(
                         knownFaceEncodings, faceEncoding, FACE_MATCH_TOLERANCE
                     )
-                    print(comparisons)
+                    comparison2 = compareFacesEncrypted(
+                        {
+                            sub: [encryptor.encrypt(enc) for enc in encs]
+                            for sub, encs in knownFaceEncodings.items()
+                        },
+                        encryptor.encrypt(faceEncoding),
+                        encryptor,
+                        FACE_MATCH_TOLERANCE,
+                    )
+                    print(comparisons, comparison2)
                     acceptedSubjects = [
                         subject
                         for subject, comparisonValues in comparisons.items()

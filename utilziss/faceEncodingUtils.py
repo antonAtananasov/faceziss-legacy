@@ -6,6 +6,7 @@ import cv2
 import numpy.typing as npt
 import numpy as np
 import os
+from utilziss.encryptUtils import Encryptor
 
 
 def generateFaceEncoding(
@@ -49,7 +50,7 @@ def loadFaceEncodings(encodingsFilePath: str) -> Dict:
 
 def compareFaces(
     knownEncodings: dict, encodingToCheck: npt.NDArray, tolerance: float = 0.6
-) -> dict[str,list[bool]]:
+) -> dict[str, list[bool]]:
     compareSubjects = {}
     for subject, encodings in knownEncodings.items():
         compareResults = face_recognition.compare_faces(
@@ -57,5 +58,22 @@ def compareFaces(
         )
 
         compareSubjects[subject] = compareResults
+    # requires all values to be under the tolerance
+    return compareSubjects
+
+
+def compareFacesEncrypted(
+    knownEncryptedEncodings: dict,
+    enceyptedEncodingToCheck: npt.NDArray,
+    encryptor: Encryptor,
+    tolerance: float = 0.6,
+) -> dict[str, list[bool]]:
+    compareSubjects = {}
+    for subject, encodings in knownEncryptedEncodings.items():
+        compareResults = encryptor.homomorphicAddition(
+            np.linalg.norm(np.array(encodings), - np.array(enceyptedEncodingToCheck), axis=1)
+        )
+        compareMatches = list(compareResults <= tolerance)
+        compareSubjects[subject] = compareMatches
     # requires all values to be under the tolerance
     return compareSubjects
