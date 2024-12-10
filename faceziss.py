@@ -27,6 +27,7 @@ from utilziss.faceEncodingUtils import (
     compareFaces,
     generateRandomCancellableTemplate,
 )
+from utilziss.encryptUtils import Encryptor
 
 USAGE_HINTS = (
     "Q - Close window",
@@ -77,6 +78,8 @@ def main():
 
     # Webcam Parameters
     webcam = cv2.VideoCapture(0)
+    webcam.set(3, realWidth)
+    webcam.set(4, realHeight)
 
     faceDetector = FaceDetector()
     handDetector = HandDetector()
@@ -166,11 +169,9 @@ def main():
     )
     successfullMatchingFaces = []
 
-    webcam.set(3, realWidth)
-    webcam.set(4, realHeight)
+    encryptor = Encryptor()
 
     prevFrameTime = time.time()
-
     while True:
         ret, camFrame = webcam.read()
         if ret == False:

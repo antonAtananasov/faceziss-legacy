@@ -187,6 +187,7 @@ SQLAlchemy==2.0.36
 stack-data==0.6.3
 sympy==1.12
 tabulate==0.9.0
+tenseal==0.3.15
 terminado==0.18.1
 testflo==1.4.19
 tinycss2==1.4.0
